@@ -1,0 +1,11 @@
+{
+    "python.pythonPath": "venv/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.pycodestyleEnabled": true,
+    "editor.formatOnPaste": true,
+    "python.autoComplete.addBrackets": true,
+    "python.linting.flake8Enabled": true,
+    "python.formatting.provider": "yapf",
+    "python.analysis.completeFunctionParens": true
+}
