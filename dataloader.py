@@ -34,12 +34,8 @@ def collate_fn(batch):
             b, c, h, w = data["image"].shape
             dummy = torch.tensor([[0, 0, h, w]]).repeat(b, 1, 1)
             data["bbox"] = torch.cat((data["bbox"], dummy), dim=1)
-            data["posecnn_bbox"] = torch.cat((data["posecnn_bbox"], dummy),
-                                             dim=1)
             dummy = torch.zeros((b, 1, 3, 4), dtype=float)
             data["poses"] = torch.cat((data["poses"], dummy), dim=1)
-            data["posecnn_poses"] = torch.cat((data["posecnn_poses"], dummy),
-                                              dim=1)
             dummy = torch.tensor([[-1]]).repeat(b, 1)
             data["cls_indices"] = torch.cat((data["cls_indices"], dummy),
                                             dim=1)
@@ -112,9 +108,7 @@ class VideoLoader(Dataset):
             "bbox": [],
             "label": [],
             "depth": [],
-            "is_keyframe": [],
-            "posecnn_bbox": [],
-            "posecnn_poses": [],
+            "is_keyframe": []
         }
 
         if self.is_train:
@@ -154,8 +148,6 @@ class VideoLoader(Dataset):
                 bbox,
                 K,
                 extrinsic,
-                bbox_p,
-                poses_p,
             ) = datum
             is_keyframe = torch.tensor(
                 fl.strip() == self.train_list[index].strip())
@@ -164,10 +156,8 @@ class VideoLoader(Dataset):
             data["label"].append(label)
             data["depth"].append(depth)
             data["poses"].append(poses)
-            data["posecnn_poses"].append(poses_p)
             data["cls_indices"].append(cls_indices)
             data["bbox"].append(bbox)
-            data["posecnn_bbox"].append(bbox_p)
             data["file_indices"].append(torch.tensor([int(i)
                                                       for i in fl_list]))
             data["intrinsic"].append(K)
@@ -277,26 +267,18 @@ class VideoLoader(Dataset):
         :return: im, label, depth, poses, cls_ind, bbox, crops, intrinsics, RT
         """
         bbox = []
-        posecnn_bbox = []
         poses = []
-        posecnn_poses = []
         cls_indices = []
         dir_path = os.path.join(self.data_dir, fl)
 
         meta_path = os.path.join(dir_path + "-meta.mat")
-        posecnn_meta_path = os.path.join(dir_path + "-posecnn.mat")
         meta_data = sio.loadmat(meta_path)
-        posecnn_meta_data = sio.loadmat(posecnn_meta_path)
         bbox_datum = bbox_data[fl]
         factor_depth = meta_data["factor_depth"]
         intrinsics = torch.Tensor(meta_data["intrinsic_matrix"])
         extrinsic = meta_data["rotation_translation_matrix"]
         extrinsic_hom = torch.eye(4)
         extrinsic_hom[0:3, :] = torch.from_numpy(extrinsic)
-
-        bbox_posecnn_datum = posecnn_meta_data["rois"][:, 2:6]
-        cls_posecnn_datum = posecnn_meta_data["rois"][:, 1]
-        poses_posecnn_datum = posecnn_meta_data["poses"]
 
         # Loading all image data (rgb, segmentation and depth)
         img_path = os.path.join(dir_path + "-color.png")
@@ -319,31 +301,10 @@ class VideoLoader(Dataset):
                     self.classes[lis[0]])
                 poses.append(meta_data["poses"][:, :, ind])
 
-                if self.roi_noise > 1:
-                    posecnn_bbox.append([
-                        box.x1 + delta[0],
-                        box.y1 + delta[1],
-                        box.x2 + delta[2],
-                        box.y2 + delta[3],
-                    ])
-                    posecnn_poses.append(np.zeros((1, 7), dtype=float))
-                else:
-                    if self.classes[lis[0]] in cls_posecnn_datum:
-                        (ind, ) = np.where(
-                            cls_posecnn_datum == self.classes[lis[0]])
-                        posecnn_bbox.append(bbox_posecnn_datum[ind, :][0])
-                        posecnn_poses.append(
-                            poses_posecnn_datum[ind].astype(float))
-                    else:
-                        # Toolbox wouldn't consider this object anyway
-                        posecnn_bbox.append([box.x1, box.y1, box.x2, box.y2])
-                        posecnn_poses.append(np.zeros((1, 7), dtype=float))
 
         datum = self.post_process_images_bbox_poses(img, depth, label, bbox,
-                                                    poses, intrinsics,
-                                                    posecnn_bbox,
-                                                    posecnn_poses)
-        im, depth, label, bbox, poses, rt_bbox_posecnn, rt_poses_posecnn = datum
+                                                    poses, intrinsics)
+        im, depth, label, bbox, poses = datum
 
         return (
             im,
@@ -353,9 +314,7 @@ class VideoLoader(Dataset):
             torch.Tensor(cls_indices),
             bbox,
             intrinsics,
-            extrinsic_hom,
-            rt_bbox_posecnn,
-            rt_poses_posecnn,
+            extrinsic_hom
         )
 
     def post_process_images_bbox_poses(self,
@@ -364,9 +323,7 @@ class VideoLoader(Dataset):
                                        label,
                                        bbox,
                                        poses,
-                                       K,
-                                       posecnn_bbox=None,
-                                       posecnn_poses=None):
+                                       K):
         """
         Adds gaussian noise to the image, rotates and translated all other data
         :param img: Image to be transformed
@@ -400,34 +357,17 @@ class VideoLoader(Dataset):
         rt_label = rotate_translate_image(label, theta=angle, cx=cx, cy=cy)
 
         rt_bbox = rotate_translate_bbox(bbox, theta=angle, cx=cx, cy=cy)
-        rt_bbox_posecnn = posecnn_bbox
-        if posecnn_bbox is not None:
-            rt_bbox_posecnn = rotate_translate_bbox(posecnn_bbox,
-                                                    theta=angle,
-                                                    cx=cx,
-                                                    cy=cy)
         rt_poses = rotate_translate_pose(poses,
                                          theta=angle,
                                          fx=fx,
                                          fy=fy,
                                          cx=cx,
                                          cy=cy)
-        rt_poses_posecnn = rotate_translate_pose(posecnn_poses,
-                                                 theta=angle,
-                                                 fx=fx,
-                                                 fy=fy,
-                                                 cx=cx,
-                                                 cy=cy)
         if not isinstance(rt_bbox, list):
             rt_bbox = list(rt_bbox)
-        if posecnn_bbox is not None:
-            if not isinstance(rt_bbox_posecnn, list):
-                rt_bbox_posecnn = list(rt_bbox_posecnn)
 
         if not isinstance(rt_poses, list):
             rt_poses = list(rt_poses)
-        if not isinstance(rt_poses_posecnn, list):
-            rt_poses_posecnn = list(rt_poses_posecnn)
 
         if self.add_jitter:
             rt_img = self.jitter_transform(rt_img)
@@ -439,30 +379,8 @@ class VideoLoader(Dataset):
             torch.Tensor(np.array(rt_depth)),
             torch.Tensor(np.array(rt_label)),
             torch.Tensor(rt_bbox),
-            torch.Tensor(rt_poses),
-            torch.Tensor(rt_bbox_posecnn),
-            torch.Tensor(rt_poses_posecnn),
+            torch.Tensor(rt_poses)
         )
-
-
-
-def voxel_grid_filter(points, leafSize):
-    p = pcl.PointCloud()
-    p.from_array(points)
-    sor = p.make_voxel_grid_filter()
-    sor.set_leaf_size(leafSize, leafSize, leafSize)
-    cloud_filtered = sor.filter()
-    return cloud_filtered
-
-
-def outlier_filter(points, meanK, std):
-    p = pcl.PointCloud(points)
-    # p.from_array(points)
-    fil = p.make_statistical_outlier_filter()
-    fil.set_mean_k(meanK)
-    fil.set_std_dev_mul_thresh(std)
-    filtered_target = fil.filter()
-    return filtered_target
 
 
 def get_keyframe_list(data_root_path):

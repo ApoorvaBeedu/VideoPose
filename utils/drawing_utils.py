@@ -73,7 +73,6 @@ class DrawFromPose:
                   img,
                   poses_gt=None,
                   poses_est=None,
-                  posecnn_poses=None,
                   bbox=None,
                   intrinsic_matrix=None,
                   points=None,
@@ -103,7 +102,6 @@ class DrawFromPose:
                 RT_est[:3, :3] = quat2mat(poses_est[i][:4].cpu().numpy())
                 RT_est[:, 3] = poses_est[i][4:7].cpu().numpy()
 
-                RT_posecnn = posecnn_poses[i].cpu().numpy()
                 RT = poses_gt[i].cpu().numpy()
 
                 loss = np.abs(
@@ -122,12 +120,6 @@ class DrawFromPose:
                 x2d_gt = np.matmul(intrinsic_matrix, np.matmul(RT, x3d))
                 x2d_gt[0, :] = np.divide(x2d_gt[0, :], x2d_gt[2, :])
                 x2d_gt[1, :] = np.divide(x2d_gt[1, :], x2d_gt[2, :])
-                x2d_posecnn = np.matmul(intrinsic_matrix,
-                                        np.matmul(RT_posecnn, x3d))
-                x2d_posecnn[0, :] = np.divide(x2d_posecnn[0, :],
-                                              x2d_posecnn[2, :])
-                x2d_posecnn[1, :] = np.divide(x2d_posecnn[1, :],
-                                              x2d_posecnn[2, :])
 
                 for poi in range(0, x2d.shape[1]):
                     try:
@@ -137,19 +129,6 @@ class DrawFromPose:
                         pass
                 image = cv2.addWeighted(im, alpha, im_o, 1 - alpha, 0)
                 cv2.putText(image, 'VideoPose', (20, 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2,
-                            cv2.LINE_AA)
-
-                for poi in range(0, x2d_posecnn.shape[1]):
-                    try:
-                        y, x = int(x2d_posecnn[1, poi]), int(x2d_posecnn[0,
-                                                                         poi])
-                        cv2.circle(im2, (x, y), 1, self.class_colors[cls - 1])
-                    except:
-                        pass
-
-                image1 = cv2.addWeighted(im2, alpha, im_o, 1 - alpha, 0)
-                cv2.putText(image1, 'PoseCNN', (20, 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2,
                             cv2.LINE_AA)
 
@@ -173,8 +152,7 @@ class DrawFromPose:
         # cv2.rectangle(im, (5, 5), (460, 30), (0, 0, 0), -1)
         # cv2.putText(im, loss_str, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
         #             (255, 255, 255), 1, cv2.LINE_AA)
-        return np.hstack((np.hstack(
-            (image, image1)), image2)).astype(np.uint8).transpose(2, 0, 1)
+        return np.hstack((image, image2)).astype(np.uint8).transpose(2, 0, 1)
 
 
 class VisualiseSegmentation:

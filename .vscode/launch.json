@@ -28,7 +28,9 @@
                     "--use_depth",
                     "1",
                     "--split",
-                    "eval"
+                    "eval",
+                    "--restore_file",
+                    "videopose"
                 ]
             },
         ]

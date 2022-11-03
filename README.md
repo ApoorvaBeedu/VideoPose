@@ -23,6 +23,11 @@ Arguments and their defaults are in ```arguments.py```
 ### Setting up dataset
 
 Download the entire YCB dataset from https://rse-lab.cs.washington.edu/projects/posecnn/    
+
+Download the checkpoint from https://drive.google.com/drive/folders/1lQh3G7KN-SHb7B-NYpqWj55O1WD4E9s6?usp=sharing 
+
+Add the checkpoint to ./model/Videopose/last_checkpoint_0000.pt, and pass the argument ```--restore_file=Videopose``` during training. 
+
 The data folder looks like
           
 ```
@@ -40,6 +45,11 @@ dataloader.py
 
 ```
 ### Execution
+
+The project uses [wandb](https://wandb.ai) for visualisation.
+
+```Main``` branch uses ```-posecnn.mat``` files, that I manually generated for every frame in the dataset using Posecnn repository. If you do not have those files, ```v1``` is the branch to use. 
+
 
 ```bash
 python3 train_eval.py --batch_size=8 --lr=0.0001 --backbone=swin --predict_future=1 --use_depth=1 --video_length=5 --workers=12

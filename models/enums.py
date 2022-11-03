@@ -18,8 +18,6 @@ class TrainingSample(Dict):
     bbox: torch.Tensor = torch.Tensor()
     label: torch.Tensor = torch.Tensor()
     depth: torch.Tensor = torch.Tensor()
-    posecnn_poses: torch.Tensor = torch.Tensor()
-    posecnn_bbox: torch.Tensor = torch.Tensor()
     prev_state: torch.Tensor = torch.Tensor()
     future_feat: torch.Tensor = torch.Tensor()
     is_keyframe: torch.Tensor = torch.Tensor()

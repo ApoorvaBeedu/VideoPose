@@ -32,8 +32,7 @@ def visualise(output,
               batch,
               points,
               classes,
-              output_ind=-1,
-              use_posecnn=False):
+              output_ind=-1):
     """
     This function is a utility to visualise results.
     """
@@ -53,8 +52,6 @@ def visualise(output,
     bbox1 = batch["bbox"][output_ind, -1]
     pose_gt = batch["poses"][output_ind, -1]
 
-    if use_posecnn:
-        bbox1 = batch["posecnn_bbox"][output_ind, -1]
 
     temp = unnormalise(temp).data.cpu().numpy()
     bbox1 = bbox1.float()
@@ -66,7 +63,6 @@ def visualise(output,
         temp,
         pose_gt,
         p_est.detach(),
-        batch["posecnn_poses"][output_ind, -1, :, :, :].float(),
         bbox1,
         K.cpu().numpy(),
         points,
@@ -367,7 +363,7 @@ class Trainer(GenericTrainer):
             )
             writer.log_scalars_dict(f"{split} Losses", output_losses, counter)
 
-    def on_iteration_complete_eval(self, outputs, output_p, batch, is_key,
+    def on_iteration_complete_eval(self, outputs, batch, is_key,
                                    filenames) -> None:
         # Goes over objects in the batch.
         # NOTE: This assumes a single batch size!!!
@@ -378,7 +374,6 @@ class Trainer(GenericTrainer):
                 self.points,
                 self.classes,
                 output_ind=-1,
-                use_posecnn=False,
             ).transpose(1, 2, 0)
             fl = f"{filenames[b_idx, -1][0]}_{filenames[b_idx,-1][1]}"
             filename = "{0}/{1}".format("%04d" % filenames[b_idx, -1][0],
@@ -392,8 +387,6 @@ class Trainer(GenericTrainer):
                     "{0}/{1}.mat".format(self.evaluate_save_dir, "%04d" % ind),
                     {
                         "poses": output.cpu().data.numpy(),
-                        "poses_posecnn": output_p[b_idx,
-                                                  -1].cpu().data.numpy(),
                         "filenames": filename,
                         "cls_indices":
                         [batch["cls_indices"][b_idx, -1].numpy()],

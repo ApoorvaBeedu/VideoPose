@@ -7,11 +7,11 @@ from datetime import datetime
 import numpy as np
 import torch
 import torch.multiprocessing as mp
+import wandb
 from loguru import logger
 from torch.utils.data import DistributedSampler
 
 import dataloader
-import wandb
 from arguments import parse_args
 from models.enums import Split, TrainingSample, float_pt
 from models.trainer import Trainer
@@ -125,13 +125,11 @@ def get_batch(data, i, prev_state, future_feat) -> TrainingSample:
     # Returns all variables in the batch in tensor format.
     # i for the timestamp
     poses = float_pt([t.numpy() for t in data["poses"][i]])
-    p_poses = float_pt([t.numpy() for t in data["p_poses"][i]])
     rt_c = float_pt([t.numpy() for t in data["extrinsic"][i]])
     rt_p = (float_pt([t.numpy() for t in data["extrinsic"][i - 1]])
             if i > 1 else torch.eye((4)).repeat(rt_c.shape[0], 1, 1))
 
     bbox1 = data["bbox"][i]  # BxNx4
-    bbox1_p = data["p_bbox"][i]  # BxNx4
 
     batch: TrainingSample = {
         "images": data["image"][i],
@@ -142,9 +140,7 @@ def get_batch(data, i, prev_state, future_feat) -> TrainingSample:
         "poses": poses,
         "extrinsic_curr": rt_c,
         "extrinsic_prev": rt_p,
-        "posecnn_poses": p_poses,
         "bbox": bbox1,
-        "posecnn_bbox": bbox1_p,
         "prev_state": prev_state,
         "timestep": torch.tensor(i),
         "future_feat": future_feat,
@@ -210,14 +206,8 @@ def solve(
                         # Uses posecnn bbox as the ROI to get more accurate estimations. Also saves output for every iteration.
                         is_keyframe = batch["is_keyframe"]
                         fl = batch["file_indices"]
-                        batch_p = batch
-                        if args.use_posecnn:
-                            batch_p["bbox"] = batch["posecnn_bbox"]
-                        loss_p, outputs_p = trainer.forward_impl(batch_p, rank)
-                        outputs_p = gather_dict(outputs_p, world_size)
-                        output_p = outputs_p["pose_out"]
                         trainer.on_iteration_complete_eval(
-                            output, output_p, batch, is_keyframe, fl)
+                            output, batch, is_keyframe, fl)
                         if rank == 0:
                             logger.info(
                                 "Keyframe Evaluation (batch index/Total) ({0}/{1})"
