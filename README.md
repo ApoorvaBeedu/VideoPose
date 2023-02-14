@@ -87,7 +87,7 @@ Download the entire YCB dataset from https://rse-lab.cs.washington.edu/projects/
 
 Download the checkpoint from https://drive.google.com/drive/folders/1lQh3G7KN-SHb7B-NYpqWj55O1WD4E9s6?usp=sharing 
 
-Add the checkpoint to ./model/Videopose/last_checkpoint_0000.pt, and pass the argument ```--restore_file=Videopose``` during training. 
+Add the checkpoint to ./model/Videopose/last_checkpoint_0000.pt, and pass the argument ```--restore_file=Videopose``` during training to start from a checkpoint. If no ```start_epoch``` is mentioned, the training will restart from the last checkpoint.
 
 The data folder looks like
           
@@ -115,3 +115,10 @@ The project uses [wandb](https://wandb.ai) for visualisation.
 ```bash
 python3 train_eval.py --batch_size=8 --lr=0.0001 --backbone=swin --predict_future=1 --use_depth=1 --video_length=5 --workers=12
 ```
+
+### Evaluation
+Evaluation currently runs only on one GPU. 
+```bash
+python3 train_eval.py --batch_size=8 --backbone=swin --predict_future=1 --use_depth=1 --video_length=5 --workers=12  --restore_file=Videopose --split=eval
+```
+The command will create several mat files for the keyframes and also saves images into a folder. To evaluate the mat files, please use the [YCBToolBox](https://github.com/yuxng/YCB_Video_toolbox). 
